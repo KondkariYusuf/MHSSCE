@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 150 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 10% 10%;
+
+    --primary: 152 60% 36%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 150 30% 90%;
+    --secondary-foreground: 150 10% 10%;
+
+    --muted: 150 15% 93%;
+    --muted-foreground: 150 10% 40%;
+
+    --accent: 152 50% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 150 10% 10%;
+    --input: 150 10% 10%;
+    --ring: 152 60% 36%;
+
+    --radius: 0px;
+
+    /* Neurobrutalism tokens */
+    --brutal-shadow: 4px 4px 0px hsl(150 10% 10%);
+    --brutal-shadow-lg: 6px 6px 0px hsl(150 10% 10%);
+    --brutal-shadow-sm: 2px 2px 0px hsl(150 10% 10%);
+    --brutal-border: 3px solid hsl(150 10% 10%);
+    --brutal-border-thin: 2px solid hsl(150 10% 10%);
+
+    /* Status colors */
+    --status-valid: 142 70% 45%;
+    --status-expiring: 45 93% 47%;
+    --status-expired: 0 72% 51%;
+
+    --sidebar-background: 152 60% 36%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 152 60% 36%;
+    --sidebar-accent: 152 50% 30%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 152 50% 30%;
+    --sidebar-ring: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .brutal-card {
+    @apply bg-card border-[3px] border-foreground p-5;
+    box-shadow: var(--brutal-shadow);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .brutal-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--brutal-shadow-lg);
+  }
+
+  .brutal-card-flat {
+    @apply bg-card border-[3px] border-foreground p-5;
+    box-shadow: var(--brutal-shadow);
+  }
+
+  .brutal-button {
+    @apply inline-flex items-center justify-center font-bold uppercase tracking-wider text-sm px-6 py-3 border-[3px] border-foreground bg-primary text-primary-foreground;
+    box-shadow: var(--brutal-shadow-sm);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+
+  .brutal-button:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--brutal-shadow);
+  }
+
+  .brutal-button:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  .brutal-input {
+    @apply w-full px-4 py-3 border-[3px] border-foreground bg-card text-foreground font-medium;
+    box-shadow: var(--brutal-shadow-sm);
+  }
+
+  .brutal-input:focus {
+    @apply outline-none ring-2 ring-primary;
+  }
+
+  .status-valid {
+    @apply bg-[hsl(142,70%,45%)] text-white border-[2px] border-foreground font-bold px-3 py-1 text-xs uppercase tracking-wider;
+    box-shadow: var(--brutal-shadow-sm);
+  }
+
+  .status-expiring {
+    @apply bg-[hsl(45,93%,47%)] text-foreground border-[2px] border-foreground font-bold px-3 py-1 text-xs uppercase tracking-wider;
+    box-shadow: var(--brutal-shadow-sm);
+  }
+
+  .status-expired {
+    @apply bg-[hsl(0,72%,51%)] text-white border-[2px] border-foreground font-bold px-3 py-1 text-xs uppercase tracking-wider;
+    box-shadow: var(--brutal-shadow-sm);
+  }
+}

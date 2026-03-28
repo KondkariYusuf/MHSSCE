@@ -1,0 +1,35 @@
+import dotenv from "dotenv";
+import { z } from "zod";
+
+const nodeEnv = process.env.NODE_ENV ?? "development";
+const preferredEnvFile = `.env.${nodeEnv}`;
+
+dotenv.config({ path: preferredEnvFile });
+dotenv.config();
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().positive().default(8080),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
+  SUPABASE_PUBLISHABLE_DEFAULT_KEY: z.string().min(20),
+  SUPABASE_STORAGE_BUCKET: z.string().min(1).default("compliance-docs"),
+  REDIS_URL: z.string().min(1),
+  CORS_ORIGIN: z.string().url().optional(),
+  WEBHOOK_SHARED_SECRET: z.string().min(16).optional()
+});
+
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  const formatted = parsed.error.issues
+    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+    .join("; ");
+
+  throw new Error(`Invalid environment configuration: ${formatted}`);
+}
+
+export const env = parsed.data;
+
+export type UserRole = "Clerk" | "Staff" | "Principal" | "Institute Authority";
