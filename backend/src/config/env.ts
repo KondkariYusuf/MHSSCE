@@ -18,7 +18,13 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
   CORS_ORIGIN: z.string().url().optional(),
   WEBHOOK_SHARED_SECRET: z.string().min(16).optional()
-});
+}).refine(
+  (data) => data.NODE_ENV !== "production" || !!data.WEBHOOK_SHARED_SECRET,
+  {
+    message: "WEBHOOK_SHARED_SECRET is required in production. Refusing to start without it.",
+    path: ["WEBHOOK_SHARED_SECRET"]
+  }
+);
 
 const parsed = envSchema.safeParse(process.env);
 

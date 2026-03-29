@@ -116,3 +116,21 @@ CREATE POLICY "Staff and Principals can manage approvals."
 ON approvals FOR ALL TO authenticated USING (
     (SELECT role FROM users WHERE id = auth.uid()) IN ('Staff', 'Principal')
 );
+
+-- ==========================================
+-- 4. STORAGE POLICIES (Supabase Storage)
+-- ==========================================
+
+-- Clerks can upload documents with a strict 10MB file size limit.
+CREATE POLICY "Clerks can upload documents"
+ON storage.objects FOR INSERT TO authenticated WITH CHECK (
+    bucket_id = 'compliance-docs'
+    AND (SELECT role FROM public.users WHERE id = auth.uid()) = 'Clerk'
+    AND (octet_length(file) <= 10485760)
+);
+
+-- All authenticated users can read/download documents from the bucket.
+CREATE POLICY "Authenticated users can read documents"
+ON storage.objects FOR SELECT TO authenticated USING (
+    bucket_id = 'compliance-docs'
+);

@@ -9,6 +9,24 @@ const sanitizeFilename = (filename: string): string => {
 };
 
 export const documentService = {
+  /**
+   * @security ⚠️  RLS BYPASS WARNING ⚠️
+   *
+   * This function uses `supabaseAdmin` (service-role key) to generate
+   * a signed upload URL. The service-role key **completely bypasses**
+   * PostgreSQL Row Level Security (RLS).
+   *
+   * This means:
+   *  - The storage operation is NOT subject to any RLS policies.
+   *  - There is NO automatic authorization check at the database level.
+   *
+   * ⛔  Any route that calls this service MUST:
+   *  1. Authenticate the user via the `authenticate` middleware.
+   *  2. Authorize the user's role via the `authorizeRoles` middleware.
+   *  3. Validate the request payload via Zod schemas in the controller.
+   *
+   * Never expose this function to unauthenticated or unauthorized callers.
+   */
   generateUploadUrl: async (
     payload: GenerateUploadUrlInput,
     instituteId: string | null
