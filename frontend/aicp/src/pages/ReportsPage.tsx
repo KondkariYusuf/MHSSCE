@@ -28,7 +28,7 @@ const ReportsPage = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data as DocumentRow[]) ?? [];
+      return (data as unknown as DocumentRow[]) ?? [];
     },
   });
 
@@ -164,13 +164,12 @@ const ReportsPage = () => {
                   <div className="flex items-center gap-3">
                     <div className="w-32 h-4 bg-muted border-[2px] border-foreground overflow-hidden">
                       <div
-                        className={`h-full ${
-                          inst.complianceScore >= 80
+                        className={`h-full ${inst.complianceScore >= 80
                             ? 'bg-status-valid'
                             : inst.complianceScore >= 60
-                            ? 'bg-status-expiring'
-                            : 'bg-status-expired'
-                        }`}
+                              ? 'bg-status-expiring'
+                              : 'bg-status-expired'
+                          }`}
                         style={{ width: `${inst.complianceScore}%` }}
                       />
                     </div>
