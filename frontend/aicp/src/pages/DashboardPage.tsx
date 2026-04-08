@@ -25,7 +25,7 @@ interface DocumentRow {
 interface ApprovalRow {
   id: string;
   document_id: string;
-  step: "Pending" | "Staff Reviewed" | "Principal Approved" | "Rejected";
+  step: "Pending" | "HOD Reviewed" | "Principal Approved" | "Rejected";
   created_at: string;
 }
 

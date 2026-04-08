@@ -39,7 +39,7 @@ const App = () => (
             <Route
               path="/institutes"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["Admin"]}>
                   <InstitutesPage />
                 </ProtectedRoute>
               }
@@ -55,7 +55,7 @@ const App = () => (
             <Route
               path="/upload"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["Clerk"]}>
                   <UploadPage />
                 </ProtectedRoute>
               }
@@ -63,7 +63,7 @@ const App = () => (
             <Route
               path="/approvals"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["Admin", "HOD", "Principal"]}>
                   <ApprovalsPage />
                 </ProtectedRoute>
               }

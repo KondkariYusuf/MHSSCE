@@ -17,7 +17,15 @@ const envSchema = z.object({
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default("compliance-docs"),
   REDIS_URL: z.string().min(1),
   CORS_ORIGIN: z.string().url().optional(),
-  WEBHOOK_SHARED_SECRET: z.string().min(16).optional()
+  WEBHOOK_SHARED_SECRET: z.string().min(16).optional(),
+  WHATSAPP_PHONE_ID: z.string().optional(),
+  WHATSAPP_API_TOKEN: z.string().optional(),
+  // SMTP (Email notifications)
+  EMAIL_SMTP_HOST: z.string().optional(),
+  EMAIL_SMTP_PORT: z.coerce.number().int().positive().default(587),
+  EMAIL_SMTP_USER: z.string().optional(),
+  EMAIL_SMTP_PASS: z.string().optional(),
+  EMAIL_FROM_ADDRESS: z.string().email().optional()
 }).refine(
   (data) => data.NODE_ENV !== "production" || !!data.WEBHOOK_SHARED_SECRET,
   {
@@ -38,4 +46,4 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 
-export type UserRole = "Clerk" | "Staff" | "Principal" | "Institute Authority";
+export type UserRole = "Clerk" | "HOD" | "Principal" | "Admin";

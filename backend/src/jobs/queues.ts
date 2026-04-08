@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { createRedisConnection } from "../config/redis";
 import { QUEUE_NAMES } from "./queue-names";
-import type { ExpiryCheckJobData, NotificationJobData } from "./types";
+import type { ExpiryCheckJobData, NotificationJobData, WorkflowNotificationJobData } from "./types";
 
 const connection = createRedisConnection();
 
@@ -31,6 +31,24 @@ export const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAMES.NOTI
   }
 });
 
+export const workflowNotificationQueue = new Queue<WorkflowNotificationJobData>(QUEUE_NAMES.WORKFLOW_NOTIFICATION, {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: 200,
+    removeOnFail: 500,
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 1000
+    }
+  }
+});
+
 export const closeQueues = async (): Promise<void> => {
-  await Promise.all([expiryCheckQueue.close(), notificationQueue.close(), connection.quit()]);
+  await Promise.all([
+    expiryCheckQueue.close(),
+    notificationQueue.close(),
+    workflowNotificationQueue.close(),
+    connection.quit()
+  ]);
 };

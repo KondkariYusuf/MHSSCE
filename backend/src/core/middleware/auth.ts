@@ -5,7 +5,7 @@ import { supabaseAdmin } from "../../config/supabase";
 interface UserProfile {
   id: string;
   institute_id: string | null;
-  role: "Clerk" | "Staff" | "Principal" | "Institute Authority";
+  role: "Clerk" | "HOD" | "Principal" | "Admin";
   full_name: string;
 }
 

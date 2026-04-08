@@ -2,54 +2,81 @@ import { Worker } from "bullmq";
 import { createRedisConnection } from "../../config/redis";
 import { logger } from "../../core/utils/logger";
 import { QUEUE_NAMES } from "../queue-names";
+import { sendWhatsAppReminder } from "../../modules/notifications/whatsapp.service";
 import type { NotificationJobData } from "../types";
-
-const prettyBanner = (title: string): string => {
-  const border = "=".repeat(72);
-  return `\n${border}\n${title}\n${border}`;
-};
 
 const renderMilestone = (milestone: NotificationJobData["milestone"]): string => {
   switch (milestone) {
     case "THREE_MONTHS":
-      return "3 Months Before Expiry";
+      return "3 months";
     case "ONE_MONTH":
-      return "1 Month Before Expiry";
+      return "1 month";
     case "EXACT_DAY":
-      return "Expiry Day";
+      return "today";
     default:
       return milestone;
   }
 };
 
 export const createNotificationWorker = (): Worker<NotificationJobData> => {
-  return new Worker<NotificationJobData>(
+  const worker = new Worker<NotificationJobData>(
     QUEUE_NAMES.NOTIFICATION,
     async (job) => {
-      const payload = job.data;
-      const milestoneLabel = renderMilestone(payload.milestone);
+      const {
+        documentName,
+        instituteName,
+        expiryDate,
+        recipientName,
+        recipientPhone,
+        milestone,
+        daysUntilExpiry
+      } = job.data;
 
-      logger.info({ banner: prettyBanner("AICP NOTIFICATION JOB") }, "Notification dispatch start");
+      const milestoneLabel = renderMilestone(milestone);
+
       logger.info(
         {
           jobId: job.id,
-          documentId: payload.documentId,
-          instituteId: payload.instituteId,
-          documentName: payload.documentName,
-          expiryDate: payload.expiryDate,
+          documentName,
+          instituteName,
+          recipient: recipientName,
           milestone: milestoneLabel,
-          daysRemaining: payload.daysUntilExpiry,
-          provider: "mock-adapter",
-          delivery: "simulated-success"
+          daysRemaining: daysUntilExpiry
         },
-        "Notification job processed"
+        "Processing notification job"
       );
 
-      return { sent: true };
+      // Dispatch via WhatsApp
+      await sendWhatsAppReminder(
+        recipientPhone,
+        documentName,
+        instituteName,
+        `${expiryDate} (${milestoneLabel})`
+      );
+
+      logger.info(
+        { jobId: job.id, recipient: recipientName },
+        "Notification delivered"
+      );
+
+      return { sent: true, recipient: recipientName };
     },
     {
       connection: createRedisConnection(),
       concurrency: 5
     }
   );
+
+  worker.on("failed", (job, err) => {
+    logger.error(
+      {
+        jobId: job?.id,
+        recipient: job?.data?.recipientName,
+        error: err.message
+      },
+      "Notification worker job failed"
+    );
+  });
+
+  return worker;
 };

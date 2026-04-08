@@ -4,15 +4,20 @@ import { closeQueues } from "./queues";
 import { scheduleDailyExpiryChecker } from "./scheduler";
 import { createExpiryWorker } from "./workers/expiry.worker";
 import { createNotificationWorker } from "./workers/notification.worker";
+import { createWorkflowNotificationWorker } from "./workers/workflow-notification.worker";
 
 let workers: Worker[] = [];
 
 const start = async (): Promise<void> => {
   await scheduleDailyExpiryChecker();
 
-  workers = [createExpiryWorker(), createNotificationWorker()];
+  workers = [
+    createExpiryWorker(),
+    createNotificationWorker(),
+    createWorkflowNotificationWorker()
+  ];
 
-  logger.info("Workers started and daily expiry scheduler registered");
+  logger.info("Workers started: expiry, notification, workflow-notification");
 };
 
 const shutdown = async (signal: string): Promise<void> => {

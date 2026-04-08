@@ -1,4 +1,4 @@
-export type Role = 'clerk' | 'staff_hod' | 'principal' | 'institute_authority' | 'government_authority';
+export type Role = 'clerk' | 'hod' | 'principal' | 'admin';
 
 export interface User {
   id: string;
@@ -13,14 +13,14 @@ export interface Institute {
   id: string;
   name: string;
   code: string;
-  type: string;
-  location: string;
+  type?: string;
+  location?: string;
   totalDocuments: number;
   complianceScore: number;
 }
 
 export type DocumentStatus = 'valid' | 'expiring' | 'expired';
-export type ApprovalStatus = 'pending_review' | 'pending_approval' | 'pending_verification' | 'approved' | 'rejected';
+export type ApprovalStatus = 'pending_review' | 'pending_approval' | 'approved' | 'rejected';
 
 export interface ComplianceDocument {
   id: string;
@@ -60,10 +60,9 @@ export interface ActivityItem {
 
 export const ROLE_LABELS: Record<Role, string> = {
   clerk: 'Clerk',
-  staff_hod: 'Staff / HOD',
+  hod: 'HOD',
   principal: 'Principal',
-  institute_authority: 'Institute Authority',
-  government_authority: 'Government Authority',
+  admin: 'Admin',
 };
 
 export const CATEGORIES = [

@@ -3,7 +3,7 @@ import { Link, useNavigate, Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
-type UserRole = "Clerk" | "Staff" | "Principal" | "Institute Authority";
+type UserRole = "Clerk" | "HOD" | "Principal";
 
 interface InstituteOption {
   id: string;
@@ -12,16 +12,11 @@ interface InstituteOption {
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: "Clerk", label: "Clerk" },
-  { value: "Staff", label: "Staff / HOD" },
+  { value: "HOD", label: "HOD (Head of Department)" },
   { value: "Principal", label: "Principal" },
-  { value: "Institute Authority", label: "Institute Authority" },
 ];
 
-const FALLBACK_INSTITUTES: InstituteOption[] = [
-  { id: "mhssce", name: "MHSSCE" },
-  { id: "mhssp", name: "MHSSP" },
-  { id: "mhss-college", name: "MHSS-College" },
-];
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -31,9 +26,11 @@ const RegisterPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [role, setRole] = useState<UserRole>("Clerk");
   const [instituteId, setInstituteId] = useState("");
-  const [institutes, setInstitutes] = useState<InstituteOption[]>(FALLBACK_INSTITUTES);
+  const [institutes, setInstitutes] = useState<InstituteOption[]>([]);
+  const [institutesLoading, setInstitutesLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,16 +41,20 @@ const RegisterPage = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Fetch institutes for the dropdown (keeps fallbacks if DB is empty)
+  // Fetch institutes dynamically from the backend API (public endpoint)
   useEffect(() => {
     const fetchInstitutes = async () => {
-      const { data, error } = await supabase
-        .from("institutes")
-        .select("id, name")
-        .order("name");
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/institutes`);
+        const json = await response.json();
 
-      if (!error && data && data.length > 0) {
-        setInstitutes(data);
+        if (json.success && json.data?.length > 0) {
+          setInstitutes(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch institutes:", err);
+      } finally {
+        setInstitutesLoading(false);
       }
     };
     fetchInstitutes();
@@ -64,8 +65,8 @@ const RegisterPage = () => {
     setError(null);
 
     // Validation
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
@@ -92,6 +93,7 @@ const RegisterPage = () => {
               full_name: fullName,
               role,
               institute_id: instituteId,
+              phone_number: phoneNumber || undefined,
             },
           },
         });
@@ -103,29 +105,24 @@ const RegisterPage = () => {
       }
 
       // Step 2: Insert the profile row into public.users
-      // This works if the user is immediately confirmed (e.g. email confirmation disabled)
-      // or if you have a DB trigger / RLS INSERT policy for new users.
       if (signUpData.user) {
         const { error: profileError } = await supabase.from("users").insert({
           id: signUpData.user.id,
           full_name: fullName,
           role,
           institute_id: instituteId,
+          phone: phoneNumber || null,
         });
 
         if (profileError) {
           console.error("Profile creation error:", profileError.message);
-          // Don't block — the auth account was created,
-          // profile can be created on first login via a trigger if needed.
         }
       }
 
       // Check if email confirmation is required
       if (signUpData.user && !signUpData.session) {
-        // Email confirmation is enabled — show confirmation message
         setSuccess(true);
       } else {
-        // Auto-confirmed — go to dashboard
         navigate("/dashboard");
       }
     } catch (err) {
@@ -244,6 +241,23 @@ const RegisterPage = () => {
               />
             </div>
 
+            <div>
+              <label className="text-sm font-bold uppercase tracking-wider block mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                autoComplete="tel"
+                placeholder="919876543210"
+                className="brutal-input"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Optional — used for notifications
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-bold uppercase tracking-wider block mb-2">
@@ -255,7 +269,7 @@ const RegisterPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  placeholder="Min 6 chars"
+                  placeholder="Min 8 chars"
                   className="brutal-input"
                 />
               </div>
@@ -302,8 +316,11 @@ const RegisterPage = () => {
                   onChange={(e) => setInstituteId(e.target.value)}
                   required
                   className="brutal-input"
+                  disabled={institutesLoading}
                 >
-                  <option value="">Select institute</option>
+                  <option value="">
+                    {institutesLoading ? "Loading..." : "Select institute"}
+                  </option>
                   {institutes.map((inst) => (
                     <option key={inst.id} value={inst.id}>
                       {inst.name}

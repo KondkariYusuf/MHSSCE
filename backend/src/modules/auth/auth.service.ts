@@ -20,7 +20,8 @@ export const authService = {
       id: userId,
       institute_id: payload.instituteId,
       full_name: payload.fullName,
-      role: payload.role
+      role: payload.role,
+      phone: payload.phoneNumber ?? null
     });
 
     if (profileError) {
@@ -33,7 +34,8 @@ export const authService = {
       email: payload.email,
       fullName: payload.fullName,
       role: payload.role,
-      instituteId: payload.instituteId
+      instituteId: payload.instituteId,
+      phoneNumber: payload.phoneNumber ?? null
     };
   },
 

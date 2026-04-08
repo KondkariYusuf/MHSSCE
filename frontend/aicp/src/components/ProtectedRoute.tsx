@@ -3,10 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  allowedRoles?: string[];
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -25,6 +26,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // RBAC check: if allowedRoles are specified, verify the user's role
+  if (allowedRoles && allowedRoles.length > 0 && profile) {
+    if (!allowedRoles.includes(profile.role)) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

@@ -9,6 +9,8 @@ import { notFoundHandler } from "./core/middleware/not-found";
 import { httpLogger } from "./core/utils/logger";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { documentsRoutes } from "./modules/documents/documents.routes";
+import { institutesRoutes } from "./modules/institutes/institutes.routes";
+import { approvalsRoutes } from "./modules/approvals/approvals.routes";
 import { webhooksRoutes } from "./modules/webhooks/webhooks.routes";
 
 export const app = express();
@@ -52,6 +54,8 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/documents", documentsRoutes);
+app.use("/api/institutes", institutesRoutes);
+app.use("/api/approvals", approvalsRoutes);
 app.use("/api/webhooks", webhooksRoutes);
 
 app.use(notFoundHandler);

@@ -10,15 +10,24 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import type { LucideIcon } from "lucide-react";
 
-const NAV_ITEMS = [
+interface NavItem {
+  label: string;
+  path: string;
+  icon: LucideIcon;
+  /** Roles that can see this item. If empty/undefined, visible to all. */
+  roles?: string[];
+}
+
+const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { label: "Institutes", path: "/institutes", icon: Building2 },
+  { label: "Institutes", path: "/institutes", icon: Building2, roles: ["Admin"] },
   { label: "Documents", path: "/documents", icon: FileText },
-  { label: "Upload", path: "/upload", icon: Upload },
-  { label: "Approvals", path: "/approvals", icon: CheckSquare },
+  { label: "Upload", path: "/upload", icon: Upload, roles: ["Clerk"] },
+  { label: "Approvals", path: "/approvals", icon: CheckSquare, roles: ["Admin", "HOD", "Principal"] },
   { label: "Reports", path: "/reports", icon: BarChart3 },
 ];
 
@@ -27,6 +36,18 @@ export function SidebarNavigation() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+
+  const userRole = profile?.role ?? "";
+
+  // Filter nav items based on user role
+  const visibleNavItems = useMemo(() => {
+    return NAV_ITEMS.filter((item) => {
+      if (!item.roles || item.roles.length === 0) {
+        return true; // Visible to all roles
+      }
+      return item.roles.includes(userRole);
+    });
+  }, [userRole]);
 
   const handleLogout = async () => {
     await signOut();
@@ -63,7 +84,7 @@ export function SidebarNavigation() {
 
         {/* Nav */}
         <nav className="flex-1 py-4">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link

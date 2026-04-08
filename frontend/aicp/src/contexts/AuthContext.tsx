@@ -14,7 +14,7 @@ export interface UserProfile {
   id: string;
   institute_id: string | null;
   full_name: string;
-  role: "Clerk" | "Staff" | "Principal" | "Institute Authority";
+  role: "Clerk" | "HOD" | "Principal" | "Admin";
 }
 
 interface AuthContextValue {
