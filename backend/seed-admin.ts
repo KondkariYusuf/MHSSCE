@@ -58,8 +58,7 @@ async function seedAdmin() {
         id: existingUser.id,
         institute_id: null,
         full_name: ADMIN_FULL_NAME,
-        role: "Admin",
-        phone: null
+        role: "Admin"
       }, { onConflict: "id" });
 
       if (profileError) {
@@ -85,8 +84,7 @@ async function seedAdmin() {
     id: userId,
     institute_id: null,
     full_name: ADMIN_FULL_NAME,
-    role: "Admin",
-    phone: null
+    role: "Admin"
   });
 
   if (profileError) {
