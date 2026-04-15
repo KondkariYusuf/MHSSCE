@@ -3,7 +3,7 @@ import { logger } from "../../core/utils/logger";
 import { notificationQueue } from "../queues";
 import type { NotificationJobData } from "../types";
 
-type DocStatus = "Valid" | "Expiring Soon" | "Expired";
+type DocStatus = "Valid" | "Expiring Soon" | "Near Expiration" | "Expired";
 
 interface DocumentRow {
   id: string;
@@ -11,6 +11,10 @@ interface DocumentRow {
   document_name: string;
   expiry_date: string;
   status: DocStatus;
+  notified_3m: boolean;
+  notified_2m: boolean;
+  notified_1m: boolean;
+  notified_0d: boolean;
 }
 
 interface InstituteRow {
@@ -44,36 +48,38 @@ const getDaysUntilExpiry = (expiryDateIso: string, now: Date): number => {
 };
 
 const calculateStatus = (daysUntilExpiry: number): DocStatus => {
-  if (daysUntilExpiry < 0) {
+  if (daysUntilExpiry <= 0) {
     return "Expired";
   }
 
-  if (daysUntilExpiry <= 90) {
+  if (daysUntilExpiry < 30) {
+    return "Near Expiration";
+  }
+
+  if (daysUntilExpiry < 60) {
     return "Expiring Soon";
   }
 
+  // < 90 Days or Exactly 90 Days -> Valid (with 'Renew' UI handled front-end)
   return "Valid";
 };
 
 /**
- * Maps exact day milestones to notification types.
- * Only triggers on exactly 90, 30, and 0 days before expiry.
+ * Maps exact thresholds to column update keys 
  */
-const milestoneForDay = (
-  daysUntilExpiry: number
-): NotificationJobData["milestone"] | null => {
-  if (daysUntilExpiry === 90) {
-    return "THREE_MONTHS";
+const getMilestoneUpdate = (daysUntilExpiry: number, doc: DocumentRow): { column: string, days: number } | null => {
+  if (daysUntilExpiry <= 0 && !doc.notified_0d) {
+    return { column: 'notified_0d', days: 0 };
   }
-
-  if (daysUntilExpiry === 30) {
-    return "ONE_MONTH";
+  if (daysUntilExpiry <= 30 && !doc.notified_1m) {
+    return { column: 'notified_1m', days: 30 };
   }
-
-  if (daysUntilExpiry === 0) {
-    return "EXACT_DAY";
+  if (daysUntilExpiry <= 60 && !doc.notified_2m) {
+    return { column: 'notified_2m', days: 60 };
   }
-
+  if (daysUntilExpiry <= 90 && !doc.notified_3m) {
+    return { column: 'notified_3m', days: 90 };
+  }
   return null;
 };
 
@@ -107,7 +113,7 @@ const fetchNotificationRecipients = async (
     .from("users")
     .select("full_name, phone")
     .eq("institute_id", instituteId)
-    .in("role", ["Principal", "Admin"])
+    .in("role", ["Principal", "HOD", "Admin"])
     .returns<RecipientRow[]>();
 
   if (error) {
@@ -118,7 +124,7 @@ const fetchNotificationRecipients = async (
     return [];
   }
 
-  return (data ?? []).filter((user) => !!user.phone);
+  return data ?? [];
 };
 
 /**
@@ -143,7 +149,7 @@ export const runDailyExpiryCheck = async (): Promise<{
   // ── Step 1: Fetch all documents expiring within 90 days ──
   const { data, error } = await supabaseAdmin
     .from("documents")
-    .select("id, institute_id, document_name, expiry_date, status")
+    .select("id, institute_id, document_name, expiry_date, status, notified_3m, notified_2m, notified_1m, notified_0d")
     .lte("expiry_date", ninetyDaysFromNow)
     .returns<DocumentRow[]>();
 
@@ -190,8 +196,8 @@ export const runDailyExpiryCheck = async (): Promise<{
     }
 
     // ── Step 3: Check if this is a notification milestone day ──
-    const milestone = milestoneForDay(daysUntilExpiry);
-    if (!milestone) {
+    const milestoneParams = getMilestoneUpdate(daysUntilExpiry, doc);
+    if (!milestoneParams) {
       continue;
     }
 
@@ -200,52 +206,43 @@ export const runDailyExpiryCheck = async (): Promise<{
       const name = await fetchInstituteName(doc.institute_id);
       instituteNameCache.set(doc.institute_id, name);
     }
-    const instituteName = instituteNameCache.get(doc.institute_id) ?? "Unknown Institute";
 
-    // Fetch recipients (Principals + Institute Authorities with phone numbers)
-    const recipients = await fetchNotificationRecipients(doc.institute_id);
+    // Update the notification column
+    const { error: notifUpdateError } = await supabaseAdmin
+      .from("documents")
+      .update({ [milestoneParams.column]: true })
+      .eq("id", doc.id);
 
-    if (recipients.length === 0) {
-      logger.warn(
-        { documentId: doc.id, instituteId: doc.institute_id },
-        "No recipients with phone numbers found for milestone notification"
-      );
-      continue;
+    if (notifUpdateError) {
+       logger.error({ error: notifUpdateError.message, docId: doc.id }, "Failed to update notification flags");
+       continue;
     }
 
-    // ── Step 4: Queue one notification job per recipient ──
-    const todayIso = startOfUtcDay(now).toISOString().slice(0, 10);
+    // ── Step 4: Queue a single workflow notification per institute ──
+    // The workflow worker will resolve all HOD/Principals logic internally and batch emails
+    const { workflowNotificationQueue } = await import("../queues");
+    
+    await workflowNotificationQueue.add(
+      "workflow-notification",
+      {
+         event: "document_expiring",
+         documentId: doc.id,
+         documentName: doc.document_name,
+         instituteId: doc.institute_id,
+         actorName: "System",
+         actorRole: "System",
+         milestoneDays: milestoneParams.days
+      }
+    );
 
-    for (const recipient of recipients) {
-      await notificationQueue.add(
-        "document-expiry-notification",
-        {
-          documentId: doc.id,
-          instituteId: doc.institute_id,
-          instituteName,
-          documentName: doc.document_name,
-          expiryDate: doc.expiry_date,
-          daysUntilExpiry,
-          milestone,
-          recipientName: recipient.full_name,
-          recipientPhone: recipient.phone!
-        },
-        {
-          // Dedup key: one notification per doc + milestone + recipient + day
-          jobId: `${doc.id}:${milestone}:${recipient.phone}:${todayIso}`
-        }
-      );
-
-      notificationsQueued += 1;
-    }
+    notificationsQueued += 1;
 
     logger.info(
       {
         documentId: doc.id,
-        milestone,
-        recipientCount: recipients.length
+        milestoneDays: milestoneParams.days,
       },
-      "Milestone notifications queued"
+      "Document expiring workflow notification queued"
     );
   }
 

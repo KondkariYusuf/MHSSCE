@@ -19,7 +19,7 @@ export interface Institute {
   complianceScore: number;
 }
 
-export type DocumentStatus = 'valid' | 'expiring' | 'expired';
+export type DocumentStatus = 'valid' | 'expiring' | 'near_expiration' | 'expired';
 export type ApprovalStatus = 'pending_review' | 'pending_approval' | 'approved' | 'rejected';
 
 export interface ComplianceDocument {

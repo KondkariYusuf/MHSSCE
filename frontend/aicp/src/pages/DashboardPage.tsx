@@ -16,7 +16,7 @@ interface DocumentRow {
   category: string;
   responsible_person: string;
   expiry_date: string;
-  r2_file_key: string;
+  file_path: string;
   status: "Valid" | "Expiring Soon" | "Expired";
   created_at: string;
   institutes: { name: string } | null;
@@ -36,6 +36,8 @@ const normalizeStatus = (status: string) => {
       return "valid";
     case "Expiring Soon":
       return "expiring";
+    case "Near Expiration":
+      return "near_expiration";
     case "Expired":
       return "expired";
     default:

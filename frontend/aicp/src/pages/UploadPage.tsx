@@ -93,24 +93,20 @@ const UploadPage = () => {
         throw new Error("File upload to storage failed.");
       }
 
-      // ── Step 3: Save document metadata to the database ──
+      // ── Step 3: Save document metadata to the database via Backend ──
       setUploadStep("saving");
 
-      const { error: insertError } = await supabase.from("documents").insert({
-        id: documentId,
-        institute_id: profile.institute_id,
-        uploader_id: profile.id,
-        document_name: documentName,
-        category,
-        responsible_person: responsiblePerson,
-        expiry_date: expiryDate,
-        r2_file_key: securePath,
-        status: "Valid",
+      await apiFetch("/api/documents/confirm-upload", {
+        method: "POST",
+        body: JSON.stringify({
+          documentId,
+          documentName,
+          category,
+          responsiblePerson,
+          expiryDate,
+          securePath,
+        }),
       });
-
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
 
       setUploadStep("done");
     } catch (err) {

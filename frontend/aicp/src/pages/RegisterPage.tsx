@@ -106,16 +106,25 @@ const RegisterPage = () => {
 
       // Step 2: Insert the profile row into public.users
       if (signUpData.user) {
-        const { error: profileError } = await supabase.from("users").insert({
+        const profileData: Record<string, unknown> = {
           id: signUpData.user.id,
           full_name: fullName,
           role,
           institute_id: instituteId,
-          phone: phoneNumber || null,
-        });
+        };
+
+        // Only include phone if user provided one
+        if (phoneNumber) {
+          profileData.phone = phoneNumber;
+        }
+
+        const { error: profileError } = await supabase
+          .from("users")
+          .insert(profileData);
 
         if (profileError) {
           console.error("Profile creation error:", profileError.message);
+          // Don't block registration — AuthContext will auto-recover on login
         }
       }
 

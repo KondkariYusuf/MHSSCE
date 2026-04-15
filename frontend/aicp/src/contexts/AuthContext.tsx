@@ -34,12 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Fetch the user's profile from the public.users table
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (currentUser: User) => {
+    // Use maybeSingle() instead of single() to avoid 406 when no row exists
     const { data, error } = await supabase
       .from("users")
       .select("id, institute_id, full_name, role")
-      .eq("id", userId)
-      .single<UserProfile>();
+      .eq("id", currentUser.id)
+      .maybeSingle<UserProfile>();
 
     if (error) {
       console.error("Failed to fetch user profile:", error.message);
@@ -47,7 +48,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setProfile(data);
+    if (data) {
+      setProfile(data);
+      return;
+    }
+
+    // Profile row doesn't exist — try to auto-recover from auth metadata
+    // This handles users whose registration failed to create the profile row
+    const meta = currentUser.user_metadata;
+    if (meta?.full_name && meta?.role && meta?.institute_id) {
+      console.warn("Profile row missing — auto-recovering from auth metadata");
+
+      const profilePayload: Record<string, unknown> = {
+        id: currentUser.id,
+        full_name: meta.full_name,
+        role: meta.role,
+        institute_id: meta.institute_id,
+      };
+
+      const { data: recovered, error: insertError } = await supabase
+        .from("users")
+        .insert(profilePayload)
+        .select("id, institute_id, full_name, role")
+        .single<UserProfile>();
+
+      if (insertError) {
+        console.error("Auto-recovery failed:", insertError.message);
+        setProfile(null);
+        return;
+      }
+
+      setProfile(recovered);
+      console.log("Profile auto-recovered successfully");
+    } else {
+      console.warn("No profile found and no metadata available for recovery");
+      setProfile(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -57,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        fetchProfile(currentSession.user.id);
+        fetchProfile(currentSession.user);
       }
       setLoading(false);
     });
@@ -70,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
-        fetchProfile(newSession.user.id);
+        fetchProfile(newSession.user);
       } else {
         setProfile(null);
       }

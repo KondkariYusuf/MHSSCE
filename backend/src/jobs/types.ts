@@ -16,7 +16,7 @@ export interface NotificationJobData {
 }
 
 export interface WorkflowNotificationJobData {
-  event: "document_uploaded" | "hod_feedback" | "principal_decision";
+  event: "document_uploaded" | "hod_feedback" | "principal_decision" | "document_expiring" | "renewal_uploaded";
   documentId: string;
   documentName: string;
   instituteId: string;
@@ -24,4 +24,5 @@ export interface WorkflowNotificationJobData {
   actorRole: string;
   feedback?: string;
   decision?: "approved" | "rejected";
+  milestoneDays?: number;
 }

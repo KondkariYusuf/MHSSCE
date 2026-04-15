@@ -4,7 +4,19 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { CATEGORIES } from "@/data/types";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { RenewModal } from "@/components/RenewModal";
+import { apiFetch } from "@/lib/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const getDaysUntilExpiry = (expiryDateIso: string) => {
+  const today = new Date();
+  const utcToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const expiry = new Date(expiryDateIso).getTime();
+  return Math.floor((expiry - utcToday) / MS_PER_DAY);
+};
 
 // DB row shape
 interface DocumentRow {
@@ -14,19 +26,22 @@ interface DocumentRow {
   category: string;
   responsible_person: string;
   expiry_date: string;
-  r2_file_key: string;
-  status: "Valid" | "Expiring Soon" | "Expired";
+  file_path: string;
+  status: "Valid" | "Expiring Soon" | "Near Expiration" | "Expired";
   created_at: string;
   institutes: { name: string } | null;
+  document_renewals?: { id: string; status: string }[];
 }
 
 // Map DB status enum → frontend badge values
-const normalizeStatus = (status: string): "valid" | "expiring" | "expired" => {
+const normalizeStatus = (status: string): "valid" | "expiring" | "near_expiration" | "expired" => {
   switch (status) {
     case "Valid":
       return "valid";
     case "Expiring Soon":
       return "expiring";
+    case "Near Expiration":
+      return "near_expiration";
     case "Expired":
       return "expired";
     default:
@@ -35,26 +50,63 @@ const normalizeStatus = (status: string): "valid" | "expiring" | "expired" => {
 };
 
 const DocumentsPage = () => {
+  const { user, profile } = useAuth();
+  const isClerk = profile?.role === "Clerk";
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  
+  const [renewModalOpen, setRenewModalOpen] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<{ id: string; name: string } | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const handleOpenRenewModal = (id: string, name: string) => {
+    setSelectedDoc({ id, name });
+    setRenewModalOpen(true);
+  };
 
   const {
     data: documents = [],
     isLoading,
     error,
+    refetch
   } = useQuery({
     queryKey: ["documents"],
     queryFn: async () => {
+      // Fetch documents with their active renewals
       const { data, error } = await supabase
         .from("documents")
-        .select("*, institutes(name)")
+        .select(`
+          *,
+          institutes(name),
+          document_renewals(
+            id,
+            status
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return (data as DocumentRow[]) ?? [];
+      return (data as any[]) ?? [];
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (documentId: string) =>
+      apiFetch(`/api/documents/${documentId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+
+  const handleDelete = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to completely delete "${name}"? This action cannot be undone and will delete all associated renewals and approvals.`)) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   const filtered = documents.filter((doc) => {
     const instituteName = doc.institutes?.name ?? "";
@@ -160,14 +212,25 @@ const DocumentsPage = () => {
                   <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border-r-2 border-foreground/30">
                     Expiry
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider">
+                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider border-r-2 border-foreground/30">
                     Status
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider">
+                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((doc, idx) => {
                   const status = normalizeStatus(doc.status);
+                  const daysToExpiry = getDaysUntilExpiry(doc.expiry_date);
+                  const isRenewable = daysToExpiry <= 90;
+                  
+                  // Check if a renewal is already pending (not Approved/Rejected)
+                  const pendingRenewal = doc.document_renewals?.find(
+                    (r) => r.status === "Pending HOD" || r.status === "Pending Principal"
+                  );
+
                   return (
                     <tr
                       key={doc.id}
@@ -190,8 +253,38 @@ const DocumentsPage = () => {
                       <td className="px-4 py-3 text-sm font-mono border-r-2 border-foreground/10">
                         {doc.expiry_date}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 font-mono border-r-2 border-foreground/10">
                         <StatusBadge status={status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {isClerk && isRenewable && (
+                          pendingRenewal ? (
+                            <span className="text-xs font-bold text-muted-foreground uppercase py-1 px-2 border-2 border-muted-foreground/30 rounded bg-muted">
+                              Renewal Pending
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenRenewModal(doc.id, doc.document_name)}
+                              className="brutal-btn-sm bg-[hsl(45,90%,50%)] hover:bg-[hsl(45,90%,40%)] text-foreground flex items-center gap-1"
+                            >
+                              <RefreshCw size={14} strokeWidth={2.5} />
+                              Renew
+                            </button>
+                          )
+                        )}
+                        {!isClerk && isRenewable && pendingRenewal && (
+                          <span className="text-xs font-bold text-[hsl(45,90%,30%)] uppercase py-1 px-2 border-2 border-[hsl(45,90%,30%)] rounded bg-[hsl(45,90%,85%)]">
+                            Renewal Submitted
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleDelete(doc.id, doc.document_name)}
+                          disabled={deleteMutation.isPending}
+                          className="brutal-btn-sm ml-2 bg-destructive text-destructive-foreground hover:bg-[hsl(0,70%,40%)] flex items-center gap-1 disabled:opacity-50"
+                          title="Delete Document"
+                        >
+                          <Trash2 size={14} strokeWidth={2.5} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -206,6 +299,19 @@ const DocumentsPage = () => {
           </div>
         )}
       </div>
+
+      {selectedDoc && (
+        <RenewModal
+          isOpen={renewModalOpen}
+          onClose={() => setRenewModalOpen(false)}
+          onSuccess={() => {
+            setRenewModalOpen(false);
+            refetch();
+          }}
+          documentId={selectedDoc.id}
+          documentName={selectedDoc.name}
+        />
+      )}
     </AppLayout>
   );
 };

@@ -6,7 +6,8 @@ interface StatusBadgeProps {
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   valid: { label: 'Valid', className: 'status-valid' },
-  expiring: { label: 'Expiring', className: 'status-expiring' },
+  expiring: { label: 'Expiring Soon', className: 'status-valid' }, // Kept simple
+  near_expiration: { label: 'Near Expiration', className: 'status-expiring' }, // Orange styling
   expired: { label: 'Expired', className: 'status-expired' },
   pending_review: { label: 'Pending Review', className: 'status-expiring' },
   pending_approval: { label: 'Pending Approval', className: 'status-expiring' },

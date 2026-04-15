@@ -9,8 +9,9 @@
 -- 1. STRICT TYPING (ENUMS)
 -- ==========================================
 CREATE TYPE user_role AS ENUM ('Clerk', 'HOD', 'Principal', 'Admin');
-CREATE TYPE doc_status AS ENUM ('Valid', 'Expiring Soon', 'Expired');
+CREATE TYPE doc_status AS ENUM ('Valid', 'Expiring Soon', 'Near Expiration', 'Expired');
 CREATE TYPE approval_step AS ENUM ('Pending', 'HOD Reviewed', 'Principal Approved', 'Rejected');
+CREATE TYPE renewal_status AS ENUM ('Pending HOD', 'Pending Principal', 'Approved', 'Rejected');
 
 -- ==========================================
 -- 2. TABLE DEFINITIONS
@@ -43,8 +44,12 @@ CREATE TABLE documents (
     category TEXT NOT NULL,
     responsible_person TEXT NOT NULL,
     expiry_date DATE NOT NULL,
-    r2_file_key TEXT NOT NULL, -- The Supabase Storage / R2 reference pointer
+    file_path TEXT NOT NULL, -- The Supabase Storage file path reference
     status doc_status DEFAULT 'Valid',
+    notified_3m BOOLEAN DEFAULT FALSE,
+    notified_2m BOOLEAN DEFAULT FALSE,
+    notified_1m BOOLEAN DEFAULT FALSE,
+    notified_0d BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -56,6 +61,20 @@ CREATE TABLE approvals (
     feedback TEXT,
     step approval_step DEFAULT 'Pending',
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Document Renewals Table
+CREATE TABLE document_renewals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    uploader_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    file_path TEXT NOT NULL,
+    expiry_date DATE NOT NULL,
+    status renewal_status DEFAULT 'Pending HOD',
+    hod_feedback TEXT,
+    principal_feedback TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Notifications Table (In-App)
@@ -103,6 +122,7 @@ $$;
 ALTER TABLE institutes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_renewals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE approvals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
@@ -164,6 +184,39 @@ CREATE POLICY "Admin can update documents."
 ON documents FOR UPDATE TO authenticated USING (
     public.get_my_role() = 'Admin'
 ) WITH CHECK (
+    public.get_my_role() = 'Admin'
+);
+
+-- ── DOCUMENT RENEWALS ──
+CREATE POLICY "Users can view renewals for their institute."
+ON document_renewals FOR SELECT TO authenticated USING (
+    EXISTS (
+        SELECT 1 FROM documents
+        WHERE documents.id = document_renewals.document_id
+        AND documents.institute_id = public.get_my_institute_id()
+    )
+    OR
+    public.get_my_role() = 'Admin'
+);
+
+CREATE POLICY "Clerks can insert document renewals."
+ON document_renewals FOR INSERT TO authenticated WITH CHECK (
+    public.get_my_role() = 'Clerk'
+    AND
+    EXISTS (
+        SELECT 1 FROM documents
+        WHERE documents.id = document_renewals.document_id
+        AND documents.institute_id = public.get_my_institute_id()
+    )
+);
+
+CREATE POLICY "HOD and Principals can manage renewals."
+ON document_renewals FOR ALL TO authenticated USING (
+    public.get_my_role() IN ('HOD', 'Principal')
+);
+
+CREATE POLICY "Admin can manage all renewals."
+ON document_renewals FOR ALL TO authenticated USING (
     public.get_my_role() = 'Admin'
 );
 
